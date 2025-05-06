@@ -1,0 +1,34 @@
+import { DashboardLayout } from '@/components/dashboard-layout';
+import { ProductForm } from '@/components/product-form';
+import { Toaster } from '@/components/ui/sonner';
+
+export default function Home() {
+  return (
+    <>
+      <DashboardLayout>
+        <div className="flex items-center justify-center min-h-[80vh] w-full">
+          <div className="w-full max-w-3xl ">
+            <section className="space-y-4">
+              <div className="space-y-2 text-center">
+                <h2 className="text-3xl font-bold tracking-tight bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+                  Product Inventory
+                </h2>
+                <p className="text-muted-foreground">
+                  Manage your product stock information and availability
+                </p>
+              </div>
+              
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-transparent rounded-xl"></div>
+                <div className="relative bg-card/30 backdrop-blur-sm rounded-xl border border-border/50 shadow-xl">
+                  <ProductForm />
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      </DashboardLayout>
+      <Toaster position="top-right" />
+    </>
+  );
+}

@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import { useState } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
@@ -12,49 +12,66 @@ import { Textarea } from "@/components/ui/textarea";
 import { FormField } from "@/components/ui/form-field";
 import { toast } from "sonner";
 import { format } from "date-fns";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabase";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { useLanguage } from "@/context/language-context";
 
 const formSchema = z.object({
   sku: z.string().min(3, {
     message: "SKU must be at least 3 characters",
   }),
-  outOfStock: z.boolean().default(false),
-  outOfStockReason: z.string().optional(),
+  outOfStockReason: z.string().min(1, {
+    message: "Please provide a reason",
+  }),
   backInStockDate: z.date().optional(),
 });
 
 type FormValues = z.infer<typeof formSchema>;
 
 export function ProductForm() {
+  const { t } = useLanguage();
   const [date, setDate] = useState<Date | undefined>(undefined);
-  const [outOfStock, setOutOfStock] = useState(false);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [submissionData, setSubmissionData] = useState<FormValues | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const {
     register,
     handleSubmit,
-    watch,
     setValue,
     reset,
-    formState: { errors, isSubmitting },
+    watch,
+    formState: { errors },
   } = useForm<FormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       sku: "",
-      outOfStock: false,
       outOfStockReason: "",
     },
   });
 
   const onSubmit = async (values: FormValues) => {
     try {
+      setIsSubmitting(true);
       const { data, error } = await supabase
         .from("products")
         .upsert([
           {
             sku: values.sku,
-            out_of_stock: values.outOfStock,
+            out_of_stock: true, // Always out of stock now
             out_of_stock_reason: values.outOfStockReason,
             back_in_stock_date: values.backInStockDate || null,
           },
@@ -64,103 +81,90 @@ export function ProductForm() {
       if (error) throw error;
 
       console.log(data);
-      toast.success("Product information saved successfully!");
+      toast.success(t("successMessage"));
       reset();
       setDate(undefined);
-      setOutOfStock(false);
     } catch (error) {
-      toast.error("Failed to save product information");
+      toast.error(t("errorMessage"));
+    } finally {
+      setIsSubmitting(false);
+      setIsConfirmOpen(false);
     }
   };
 
-  const toggleOutOfStock = () => {
-    const newValue = !outOfStock;
-    setOutOfStock(newValue);
-    setValue("outOfStock", newValue);
-    if (!newValue) {
-      setValue("outOfStockReason", "");
-      setValue("backInStockDate", undefined);
-      setDate(undefined);
-    }
+  const handleFormSubmit = (values: FormValues) => {
+    setSubmissionData(values);
+    setIsConfirmOpen(true);
   };
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="p-8 space-y-8">
-      <FormField>
-        <div className="space-y-3">
-          <Label
-            htmlFor="sku"
-            className="text-base font-medium inline-block bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent"
-          >
-            SKU (Stock Keeping Unit)
-          </Label>
-          <Input
-            id="sku"
-            placeholder="Enter product SKU"
-            className="transition-all duration-300 border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 bg-background/50 backdrop-blur-sm"
-            {...register("sku")}
-          />
-          {errors.sku && (
-            <p className="text-sm text-destructive animate-in slide-in-from-left-2 duration-200">
-              {errors.sku.message}
-            </p>
-          )}
-        </div>
-      </FormField>
-
-      <FormField>
-        <div className="flex space-x-4 space-y-2 flex-col">
-          <Label className="text-base ml-2 font-medium inline-block bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-            Stock Status
-          </Label>
-          <div className="flex items-center">
-            <span className="mr-2 text-sm font-medium">In Stock</span>
-            <button
-              type="button"
-              onClick={toggleOutOfStock}
-              className={cn(
-                "relative inline-flex h-6 w-11 items-center rounded-full border-2 border-transparent transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2",
-                outOfStock ? "bg-destructive/20" : "bg-primary/20"
-              )}
+    <>
+      <form
+        onSubmit={handleSubmit(handleFormSubmit)}
+        className="p-8 space-y-8"
+      >
+        <FormField>
+          <div className="space-y-3">
+            <Label
+              htmlFor="sku"
+              className="text-base font-medium inline-block bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent"
             >
-              <span
-                className={cn(
-                  "inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition-all duration-200",
-                  "border border-border/50",
-                  outOfStock 
-                    ? "translate-x-5 bg-destructive border-destructive/50" 
-                    : "translate-x-0 bg-primary border-primary/50"
-                )}
-              />
-            </button>
-            <span className="ml-2 text-sm font-medium">Out of Stock</span>
+              {t("skuLabel")}
+            </Label>
+            <Input
+              id="sku"
+              placeholder={t("skuPlaceholder")}
+              className="transition-all duration-300 border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 bg-background/50 backdrop-blur-sm"
+              {...register("sku")}
+            />
+            {errors.sku && (
+              <p className="text-sm text-destructive animate-in slide-in-from-left-2 duration-200">
+                {errors.sku.message}
+              </p>
+            )}
           </div>
-        </div>
-      </FormField>
+        </FormField>
 
-      {outOfStock && (
-        <div className="space-y-8 animate-in slide-in-from-top-2 duration-300">
+        <FormField>
+          <div className="space-y-3">
+            <Label className="text-base font-medium inline-block bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+              {t("stockStatusLabel")}
+            </Label>
+            <div className="flex items-center">
+              <span className="text-sm font-medium text-muted-foreground">
+                {t("outOfStock")}
+              </span>
+            </div>
+          </div>
+        </FormField>
+
+        <div className="space-y-8">
           <FormField>
             <div className="space-y-3">
               <Label
                 htmlFor="outOfStockReason"
                 className="text-base font-medium inline-block bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent"
               >
-                Out of Stock Reason
+                {t("reasonLabel")}
               </Label>
               <Textarea
                 id="outOfStockReason"
-                placeholder="Please provide a reason"
+                placeholder={t("reasonPlaceholder")}
                 className="min-h-[100px] transition-all duration-300 border-border/50 focus:border-primary/50 focus:ring-2 focus:ring-primary/20 resize-none bg-background/50 backdrop-blur-sm"
                 {...register("outOfStockReason")}
               />
+              {errors.outOfStockReason && (
+                <p className="text-sm text-destructive animate-in slide-in-from-left-2 duration-200">
+                  {errors.outOfStockReason.message}
+                </p>
+              )}
             </div>
           </FormField>
 
           <FormField>
             <div className="space-y-3">
               <Label className="text-base font-medium inline-block bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
-                When will it be back in stock?
+                {t("backInStockLabel")}
               </Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -173,7 +177,7 @@ export function ProductForm() {
                     )}
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {date ? format(date, "PPP") : "Select a date"}
+                    {date ? format(date, "PPP") : t("selectDate")}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
@@ -192,16 +196,74 @@ export function ProductForm() {
             </div>
           </FormField>
         </div>
-      )}
 
-      <Button
-        type="submit"
-        className="w-full relative overflow-hidden group bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary transition-all duration-300"
-        disabled={isSubmitting}
-      >
-        {isSubmitting ? "Saving..." : "Save Product Information"}
-        <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-20 transition-opacity duration-300 rounded-md"></div>
-      </Button>
-    </form>
+        <Button
+          type="submit"
+          className="w-full relative overflow-hidden group bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary transition-all duration-300"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? t("saving") : t("submitButton")}
+          <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-20 transition-opacity duration-300 rounded-md"></div>
+        </Button>
+      </form>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={isConfirmOpen} onOpenChange={setIsConfirmOpen}>
+        <DialogContent className="sm:max-w-[425px] rounded-lg border-border/50 bg-background/50 backdrop-blur-sm">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold bg-gradient-to-r from-primary to-primary/70 bg-clip-text text-transparent">
+              {t("confirmationTitle")}
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground">
+              {t("reviewDetails")}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-muted-foreground">
+                {t("skuConfirmation")}
+              </Label>
+              <p className="text-sm">{submissionData?.sku}</p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-sm font-medium text-muted-foreground">
+                {t("reasonConfirmation")}
+              </Label>
+              <p className="text-sm">{submissionData?.outOfStockReason}</p>
+            </div>
+
+            {submissionData?.backInStockDate && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium text-muted-foreground">
+                  {t("backInStockConfirmation")}
+                </Label>
+                <p className="text-sm">
+                  {format(submissionData.backInStockDate, "PPP")}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsConfirmOpen(false)}
+              className="border-border/50 hover:border-primary/50"
+            >
+              {t("cancelButton")}
+            </Button>
+            <Button
+              onClick={() => submissionData && onSubmit(submissionData)}
+              className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? t("saving") : t("confirmButton")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
